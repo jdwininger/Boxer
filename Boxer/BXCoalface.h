@@ -18,6 +18,15 @@
 #import "video.h"
 #include <stdio.h>
 
+#include <stdint.h>
+typedef uint8_t Bit8u;
+typedef int8_t Bit8s;
+typedef uint16_t Bit16u;
+typedef int16_t Bit16s;
+typedef uint32_t Bit32u;
+typedef int32_t Bit32s;
+
+
 #if __cplusplus
 extern "C" {
 #endif
@@ -43,14 +52,12 @@ extern "C" {
     class DOS_Shell;
 	
 #pragma mark - Rendering
-	Bitu boxer_prepareForFrameSize(Bitu width, Bitu height, Bitu gfx_flags, double scalex, double scaley, GFX_CallBack_t callback, double pixel_aspect);
 	bool boxer_startFrame(Bit8u * & frameBuffer, int &pitch);
 	void boxer_finishFrame(const uint16_t *dirtyBlocks);
 	Bitu boxer_idealOutputMode(Bitu flags);
 	
 	void boxer_applyRenderingStrategy(void);
 	Bitu boxer_getRGBPaletteEntry(Bit8u red, Bit8u green, Bit8u blue);
-    void boxer_setShader(const char* src);
 	
     /// Defined in vga_other.cpp to give Boxer access to Hercules and CGA graphics mode options.
     Bit8u boxer_herculesTintMode(void);
@@ -211,4 +218,10 @@ extern "C" {
 } //Extern C
 #endif
 
+#endif
+
+#if __cplusplus
+#include <string>
+uint8_t boxer_prepareForFrameSize(const int width, const int height, const Fraction& render_pixel_aspect_ratio, const uint8_t flags, const VideoMode& video_mode, GFX_CallBack_t callback);
+void boxer_setShader(const ShaderInfo& shader_info, const std::string& shader_source);
 #endif

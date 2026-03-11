@@ -104,7 +104,10 @@ static CGEventRef _handleEventFromTap(CGEventTapProxy proxy, CGEventType type, C
 
 + (BOOL) canCaptureKeyEvents
 {
-    return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)@{(__bridge NSString*)kAXTrustedCheckOptionPrompt: @YES});
+    static BOOL hasPrompted = NO;
+    NSDictionary *options = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @(!hasPrompted)};
+    hasPrompted = YES;
+    return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
 }
 
 - (BXKeyboardEventTapStatus) _reportedStatusOfEventTap

@@ -151,11 +151,7 @@ NSString * const BXMIDIExternalDeviceNeedsMT32SysexDelaysKey = @"Needs MT-32 Sys
 {
     SDL_PauseAudio(YES);
     
-#if !defined(C_SDL2)
-    _cdromWasPlaying = (SDL_CDStatus(NULL) == CD_PLAYING);
-    if (_cdromWasPlaying)
-        SDL_CDPause(NULL);
-#endif
+
     
     [self.activeMIDIDevice pause];
 }
@@ -164,10 +160,7 @@ NSString * const BXMIDIExternalDeviceNeedsMT32SysexDelaysKey = @"Needs MT-32 Sys
 {
     SDL_PauseAudio(NO);
 
-#if !defined(C_SDL2)
-    if (_cdromWasPlaying)
-        SDL_CDResume(NULL);
-#endif
+
     
     [self.activeMIDIDevice resume];
 }
@@ -178,27 +171,24 @@ void _renderMIDIOutput(Bitu numFrames)
 {
     //We need to look up the corresponding channel for this because DOSBox's
     //mixer doesn't pass any context with its callbacks.
-    MixerChannel *channel = MIXER_FindChannel(BXMIDIChannelName);
+    MixerChannel *channel = MIXER_FindChannel(BXMIDIChannelName).get();
     if (channel) [[BXEmulator currentEmulator] _renderMIDIOutputToChannel: channel frames: numFrames];
 }
 
 
 - (MixerChannel *) _MIDIMixerChannel
 {
-    return MIXER_FindChannel(BXMIDIChannelName);
+    return MIXER_FindChannel(BXMIDIChannelName).get();
 }
 
 - (MixerChannel *) _addMIDIMixerChannelWithSampleRate: (NSUInteger)sampleRate
 {
     MixerChannel *channel = [self _MIDIMixerChannel];
     
-    if (channel)
-    {
-        channel->SetFreq(sampleRate);
-    }
+    if (channel) { /* SetFreq not supported */ }
     else
     {
-        channel = MIXER_AddChannel(_renderMIDIOutput, sampleRate, BXMIDIChannelName);
+        channel = MIXER_AddChannel(_renderMIDIOutput, sampleRate, BXMIDIChannelName, {ChannelFeature::Stereo, ChannelFeature::Synthesizer}).get();
     }
     channel->Enable(true);
     return channel;
@@ -210,7 +200,7 @@ void _renderMIDIOutput(Bitu numFrames)
     if (channel)
     {
         channel->Enable(false);
-        MIXER_DelChannel(channel);
+        MIXER_DeregisterChannel(BXMIDIChannelName);
     }
 }
 

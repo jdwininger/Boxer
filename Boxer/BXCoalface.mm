@@ -109,19 +109,18 @@ void boxer_applyRenderingStrategy()
 	[[emulator videoHandler] applyRenderingStrategy];
 }
 
-void boxer_setShader(const char* src) {
+void boxer_setShader(const ShaderInfo& shader_info, const std::string& shader_source) {
     //TODO: implement!
 }
 
-Bitu boxer_prepareForFrameSize(Bitu width, Bitu height, Bitu gfx_flags, double scalex, double scaley, GFX_CallBack_t callback, double pixel_aspect)
-{
+uint8_t boxer_prepareForFrameSize(const int width, const int height, const Fraction& render_pixel_aspect_ratio, const uint8_t flags, const VideoMode& video_mode, GFX_CallBack_t callback) {
 	BXEmulator *emulator = [BXEmulator currentEmulator];
-	
+
 	NSSize outputSize	= NSMakeSize((CGFloat)width, (CGFloat)height);
-	NSSize scale		= NSMakeSize((CGFloat)scalex, (CGFloat)scaley);
+	NSSize scale		= NSMakeSize(1.0, 1.0);
 	[[emulator videoHandler] prepareForOutputSize: outputSize atScale: scale withCallback: callback];
-	
-	return GFX_CAN_32 | GFX_SCALING;
+
+	return GFX_CAN_32 ;
 }
 
 Bitu boxer_idealOutputMode(Bitu flags)
@@ -129,7 +128,7 @@ Bitu boxer_idealOutputMode(Bitu flags)
 	//Originally this tested various bit depths to find the most appropriate mode for the chosen scaler.
 	//Because OS X always uses a 32bpp context and Boxer always uses RGBA-capable scalers, we ignore the
 	//original function's behaviour altogether and just return something that will keep DOSBox happy.
-	return GFX_CAN_32 | GFX_SCALING;
+	return GFX_CAN_32 ;
 }
 
 bool boxer_startFrame(Bit8u * &frameBuffer, int & pitch)
