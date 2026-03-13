@@ -35,6 +35,7 @@
 
 #import "BXShaderParametersWindowController.h"
 #import "BXAudioControls.h"
+@import MetalKit;
 
 
 #pragma mark - Constants
@@ -1753,6 +1754,14 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 - (void) windowWillClose: (NSNotification *)notification
 {
     _windowIsClosing = YES;
+    
+    // Stop the Metal rendering view to prevent ghost images after close.
+    // The MTKView's display link must be paused and textures cleared
+    // before macOS captures the window's close animation snapshot.
+    [self.renderingView updateWithFrame:nil];
+    if ([self.renderingView isKindOfClass:[MTKView class]]) {
+        ((MTKView *)self.renderingView).paused = YES;
+    }
 }
 
 

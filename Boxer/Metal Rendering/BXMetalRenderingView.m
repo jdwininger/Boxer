@@ -256,6 +256,9 @@ static NSString *const kBlitShaderSource = @""
         return;
     }
     
+    // Don't accept new frames if we're shutting down
+    if (self.paused) return;
+    
     CGRect sourceRect = CGRectMake(0, 0, frame.size.width, frame.size.height);
     [_filterChain setSourceRect:sourceRect aspect:frame.scaledSize];
     
@@ -295,7 +298,7 @@ static NSString *const kBlitShaderSource = @""
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    if (_texture == nil) {
+    if (_texture == nil || self.paused) {
         return;
     }
     
@@ -349,6 +352,16 @@ static NSString *const kBlitShaderSource = @""
     [_filterChain setDrawableSize:_videoLayer.drawableSize];
     if (self.currentFrame) {
         [self setViewportRect:[self viewportForFrame:self.currentFrame] animated:NO];
+    }
+}
+
+- (void)viewWillMoveToWindow:(NSWindow *)newWindow {
+    [super viewWillMoveToWindow:newWindow];
+    if (newWindow == nil) {
+        // Window is closing — stop rendering and release Metal resources
+        self.paused = YES;
+        _currentFrame = nil;
+        _texture = nil;
     }
 }
 
