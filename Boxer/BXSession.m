@@ -669,46 +669,37 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     [self.gameSettings setObject: @(showLaunchPanel)
                           forKey: BXGameboxSettingsShowLaunchPanelKey];
     
-    //Store the restart intent so that emulatorDidFinish: can reopen the document
-    //after the emulator has fully shut down. This avoids the old approach of closing
-    //and immediately reopening while the emulator is still on the call stack.
+    //Flag that we're restarting so emulatorDidFinish: will create a new
+    //emulator in-place rather than closing the session.
     _isRestarting = YES;
     _showLaunchPanelOnRestart = showLaunchPanel;
     
-    //Prevent the app from quitting when the last window closes during the
-    //restart sequence. This must be set now, before ``cancel`` triggers
-    //shutdown, because macOS may check applicationShouldTerminateAfterLastWindowClosed:
-    //before the deferred _completeRestartWithURL: has a chance to run.
-    ((BXBaseAppController *)[NSApp delegate]).restartingDocumentCount++;
-    
-    //Cancel the emulator to trigger shutdown. When DOSBox fully exits,
-    //emulatorDidFinish: will handle the close-and-reopen sequence.
+    //Cancel the emulator to trigger shutdown.
     [self cancel];
 }
 
-- (void) _completeRestartWithURL: (NSURL *)reopenURL
+- (void) _restartEmulatorInPlace
 {
-    BXBaseAppController *appController = (BXBaseAppController *)[NSApp delegate];
+    //Clear restart flags
+    _isRestarting = NO;
+    _showLaunchPanelOnRestart = NO;
     
-    //Close the old session now that the emulator has fully unwound.
-    [self close];
+    //Reset session state so a new emulator can start
+    _hasStarted = NO;
+    _hasConfigured = NO;
+    _hasLaunched = NO;
+    _hasFinishedStartupProcess = NO;
+    _isClosing = NO;
     
-    //Open a fresh session for the same game.
-    if (reopenURL)
-        [appController openDocumentWithContentsOfURL: reopenURL
-                                             display: YES
-                                   completionHandler: ^(NSDocument * _Nullable document,
-                                                        BOOL documentWasAlreadyOpen,
-                                                        NSError * _Nullable error) {
-            appController.restartingDocumentCount--;
-            if (error)
-                NSLog(@"Restart failed to reopen document: %@", error);
-        }];
-    else
-    {
-        [appController openUntitledDocumentAndDisplay: YES error: NULL];
-        appController.restartingDocumentCount--;
-    }
+    //Clear program tracking
+    self.launchedProgramURL = nil;
+    self.launchedProgramArguments = nil;
+    
+    //Create a fresh emulator (setEmulator: handles delegate/binding teardown of old one)
+    self.emulator = [[BXEmulator alloc] init];
+    
+    //Re-launch through the normal start path
+    [self start];
 }
 
 - (BOOL) isEntireFileLoaded
@@ -1227,12 +1218,11 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
 	
     if (_isRestarting)
     {
-        //The emulator has fully shut down. Now close the old session and reopen.
-        //We defer to the next run loop iteration so that the emulator's call stack
-        //has fully unwound before we tear down the session and start a new one.
-        NSURL *reopenURL = self.fileURL;
-        [self performSelector: @selector(_completeRestartWithURL:)
-                   withObject: reopenURL
+        //Restart in-place: create a fresh emulator within the same session
+        //and re-run _startEmulator. This avoids closing/reopening the document
+        //which has issues with DOSBox's global state.
+        [self performSelector: @selector(_restartEmulatorInPlace)
+                   withObject: nil
                    afterDelay: 0];
     }
     else if ([self _shouldCloseOnEmulatorExit])

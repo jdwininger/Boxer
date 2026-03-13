@@ -84,12 +84,9 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 #pragma mark -
 #pragma mark Application open/closing behaviour
 
-//Quit after the last window is closed, unless a session is restarting
-//(which temporarily closes and reopens its document).
+//Quit after the last window is closed.
 - (BOOL) applicationShouldTerminateAfterLastWindowClosed: (NSApplication *)sender
 {
-	if (self.restartingDocumentCount > 0)
-		return NO;
 	return YES;
 }
 
