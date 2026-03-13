@@ -675,6 +675,12 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     _isRestarting = YES;
     _showLaunchPanelOnRestart = showLaunchPanel;
     
+    //Prevent the app from quitting when the last window closes during the
+    //restart sequence. This must be set now, before ``cancel`` triggers
+    //shutdown, because macOS may check applicationShouldTerminateAfterLastWindowClosed:
+    //before the deferred _completeRestartWithURL: has a chance to run.
+    ((BXBaseAppController *)[NSApp delegate]).restartingDocumentCount++;
+    
     //Cancel the emulator to trigger shutdown. When DOSBox fully exits,
     //emulatorDidFinish: will handle the close-and-reopen sequence.
     [self cancel];
@@ -683,9 +689,6 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
 - (void) _completeRestartWithURL: (NSURL *)reopenURL
 {
     BXBaseAppController *appController = (BXBaseAppController *)[NSApp delegate];
-    
-    //Prevent the app from quitting when we close the last window.
-    appController.restartingDocumentCount++;
     
     //Close the old session now that the emulator has fully unwound.
     [self close];
