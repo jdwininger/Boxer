@@ -116,7 +116,7 @@ typedef NS_ENUM(NSInteger, BXSessionProgramCompletionBehavior) {
 	BOOL _hasLaunched;
     BOOL _hasFinishedStartupProcess;
 	BOOL _isClosing;
-	BOOL _isRestarting;
+	@public BOOL _isRestarting;
 	BOOL _showLaunchPanelOnRestart;
 	BOOL _emulating;
 	
