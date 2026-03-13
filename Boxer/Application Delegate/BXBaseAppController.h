@@ -19,6 +19,10 @@
 
 #pragma mark - Properties
 
+/// Incremented while a session is in the process of restarting (close + reopen).
+/// Prevents the app from quitting when the last window momentarily closes.
+@property (assign, nonatomic) NSInteger restartingDocumentCount;
+
 /// The currently-active DOS session. Changes whenever a new session opens.
 @property (retain) BXSession *currentSession;
 

@@ -682,21 +682,30 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
 
 - (void) _completeRestartWithURL: (NSURL *)reopenURL
 {
+    BXBaseAppController *appController = (BXBaseAppController *)[NSApp delegate];
+    
+    //Prevent the app from quitting when we close the last window.
+    appController.restartingDocumentCount++;
+    
     //Close the old session now that the emulator has fully unwound.
     [self close];
     
     //Open a fresh session for the same game.
     if (reopenURL)
-        [(BXBaseAppController *)[NSApp delegate] openDocumentWithContentsOfURL: reopenURL
-                                                                       display: YES
-                                                             completionHandler: ^(NSDocument * _Nullable document,
-                                                                                  BOOL documentWasAlreadyOpen,
-                                                                                  NSError * _Nullable error) {
+        [appController openDocumentWithContentsOfURL: reopenURL
+                                             display: YES
+                                   completionHandler: ^(NSDocument * _Nullable document,
+                                                        BOOL documentWasAlreadyOpen,
+                                                        NSError * _Nullable error) {
+            appController.restartingDocumentCount--;
             if (error)
                 NSLog(@"Restart failed to reopen document: %@", error);
         }];
     else
-        [(BXBaseAppController *)[NSApp delegate] openUntitledDocumentAndDisplay: YES error: NULL];
+    {
+        [appController openUntitledDocumentAndDisplay: YES error: NULL];
+        appController.restartingDocumentCount--;
+    }
 }
 
 - (BOOL) isEntireFileLoaded

@@ -88,11 +88,8 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 //(which temporarily closes and reopens its document).
 - (BOOL) applicationShouldTerminateAfterLastWindowClosed: (NSApplication *)sender
 {
-	for (BXSession *session in self.sessions)
-	{
-		if (session->_isRestarting)
-			return NO;
-	}
+	if (self.restartingDocumentCount > 0)
+		return NO;
 	return YES;
 }
 
