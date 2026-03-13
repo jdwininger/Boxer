@@ -1005,6 +1005,11 @@ static BOOL _hasStartedEmulator = NO;
 //chopping out all the stuff that Boxer doesn't need or want.
 - (void) _startDOSBox
 {
+	//Clear the global shutdown flag from any previous DOSBox session.
+	//This is critical for restart: the old session sets shutdown_requested = true
+	//during cancel, and without resetting it the new DOSBox main loop exits immediately.
+	shutdown_requested = false;
+	
 	//Initialize the SDL modules that DOSBox will need.
 	NSAssert1(!SDL_Init(SDL_INIT_AUDIO),
 			  @"SDL failed to initialize with the following error: %s", SDL_GetError());
