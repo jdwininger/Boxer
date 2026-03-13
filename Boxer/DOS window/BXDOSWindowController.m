@@ -1437,8 +1437,15 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
     }
     
     _currentPanel = newPanel;
+    
+    //Ensure the new panel is fully visible and the old panel is fully hidden.
+    //NSAnimationNonblocking animations run via the run loop, which in single-threaded
+    //mode may not tick often enough to complete the fade. Force the final alpha state
+    //so the new panel is never stuck at alpha=0 (grey background visible).
     viewForNewPanel.hidden = NO;
+    viewForNewPanel.alphaValue = 1.0;
     viewForOldPanel.hidden = YES;
+    viewForOldPanel.alphaValue = 0.0;
     
     //Sync the mouse-locked state when switching to/away from the DOS view.
     if (newPanel == BXDOSWindowDOSView)
