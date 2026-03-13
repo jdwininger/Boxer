@@ -1579,6 +1579,11 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     //Let the display sleep while we're at the shell
     [self _syncSuppressesDisplaySleep];
     
+    //If we're in the middle of a restart, don't act on program completion
+    //behaviour (which could close the session before the restart completes).
+    if (_isRestarting)
+        return;
+    
     //If this was the last program in the stack, then clean up a bunch of our state
     //and switch back to the launcher panel if appropriate.
     BOOL wasLastProcess = (self.emulator.runningProcesses.count == 0);
