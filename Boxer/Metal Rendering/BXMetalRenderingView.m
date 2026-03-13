@@ -170,28 +170,83 @@ static NSString *const kBlitShaderSource = @""
     _renderingStyle = renderingStyle;
     
     switch (renderingStyle) {
-    case BXRenderingStyleNormal: {
-        NSURL *path = [NSBundle.mainBundle URLForResource:@"Pixellate" withExtension:@"slangp" subdirectory:@"Shaders/Pixellate"];
-        [_filterChain setShaderFromURL:path error:nil];
+    case BXRenderingStyleNormal:
+        [self _loadShaderNamed:@"Pixellate" inSubdirectory:@"Shaders/Pixellate"];
         break;
-    }
-        
-    case BXRenderingStyleCRT: {
-        NSURL *path = [NSBundle.mainBundle URLForResource:@"CRT Geom" withExtension:@"slangp" subdirectory:@"Shaders/CRT Geom"];
-        [_filterChain setShaderFromURL:path error:nil];
+    case BXRenderingStyleSmoothed:
+        [self _loadShaderNamed:@"Smooth" inSubdirectory:@"Shaders/Smooth"];
         break;
-    }
-        
-    case BXRenderingStyleSmoothed: {
-        NSURL *path = [NSBundle.mainBundle URLForResource:@"Smooth" withExtension:@"slangp"  subdirectory:@"Shaders/Smooth"];
-        [_filterChain setShaderFromURL:path error:nil];
+    case BXRenderingStyleCRT:
+        [self _loadShaderNamed:@"CRT Geom" inSubdirectory:@"Shaders/CRT Geom"];
         break;
-    }
+    case BXRenderingStyleCRTDeluxe:
+        [self _loadShaderNamed:@"CRT Geom Deluxe" inSubdirectory:@"Shaders/CRT Geom Deluxe"];
+        break;
+    case BXRenderingStyleCRTRoyale:
+        [self _loadShaderNamed:@"CRT Royale Kurozumi" inSubdirectory:@"Shaders/CRT Royale Kurozumi"];
+        break;
+    case BXRenderingStyleNTSC:
+        [self _loadShaderNamed:@"NTSC" inSubdirectory:@"Shaders/NTSC"];
+        break;
+    case BXRenderingStyleNTSCVCR:
+        [self _loadShaderNamed:@"NTSC VCR" inSubdirectory:@"Shaders/NTSC VCR"];
+        break;
+    case BXRenderingStyleVHS:
+        [self _loadShaderNamed:@"VHS" inSubdirectory:@"Shaders/VHS"];
+        break;
+    case BXRenderingStyleMAMEHLSL:
+        [self _loadShaderNamed:@"MAME HLSL" inSubdirectory:@"Shaders/MAME HLSL"];
+        break;
+    case BXRenderingStyleLCDPSP:
+        [self _loadShaderNamed:@"LCD PSP" inSubdirectory:@"Shaders/LCD PSP"];
+        break;
+    case BXRenderingStyleSABR:
+        [self _loadShaderNamed:@"SABR" inSubdirectory:@"Shaders/SABR"];
+        break;
+    case BXRenderingStyleXBRZ:
+        [self _loadShaderNamed:@"xBRZ Freescale" inSubdirectory:@"Shaders/xBRZ Freescale"];
+        break;
+    case BXRenderingStyleXBRZMultipass:
+        [self _loadShaderNamed:@"xBRZ Multipass Freescale" inSubdirectory:@"Shaders/xBRZ Multipass Freescale"];
+        break;
+    case BXRenderingStyleNearestNeighbor:
+        [self _loadShaderNamed:@"Nearest Neighbor" inSubdirectory:@"Shaders/Nearest Neighbor"];
+        break;
+    case BXRenderingStyleLinear:
+        [self _loadShaderNamed:@"Linear" inSubdirectory:@"Shaders/Linear"];
+        break;
+    case BXRenderingStyleBlinky:
+        [self _loadShaderNamed:@"Blinky" inSubdirectory:@"Shaders/Blinky"];
+        break;
+    case BXRenderingStyleDither:
+        [self _loadShaderNamed:@"Dither" inSubdirectory:@"Shaders/Dither"];
+        break;
+    case BXRenderingStyleHalftone:
+        [self _loadShaderNamed:@"Halftone" inSubdirectory:@"Shaders/Halftone"];
+        break;
+    case BXRenderingStyleMotionBlur:
+        [self _loadShaderNamed:@"Motion Blur" inSubdirectory:@"Shaders/Motion Blur"];
+        break;
+    default:
+        [self _loadShaderNamed:@"Pixellate" inSubdirectory:@"Shaders/Pixellate"];
+        break;
     }
     
     [self didChangeValueForKey:@"renderingStyle"];
     
     self.parameterGroups = _filterChain.shader.parameterGroups;
+}
+
+- (void)_loadShaderNamed:(NSString *)name inSubdirectory:(NSString *)subdirectory {
+    NSURL *path = [NSBundle.mainBundle URLForResource:name withExtension:@"slangp" subdirectory:subdirectory];
+    if (!path) {
+        NSLog(@"BXMetalRenderingView: Shader not found: %@/%@.slangp", subdirectory, name);
+        return;
+    }
+    NSError *error = nil;
+    if (![_filterChain setShaderFromURL:path error:&error]) {
+        NSLog(@"BXMetalRenderingView: Failed to load shader %@: %@", name, error);
+    }
 }
 
 - (void)updateWithFrame:(BXVideoFrame *)frame {
@@ -240,7 +295,7 @@ static NSString *const kBlitShaderSource = @""
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    if (_texture == nil || !_blitPipeline) {
+    if (_texture == nil) {
         return;
     }
     
@@ -259,12 +314,20 @@ static NSString *const kBlitShaderSource = @""
         rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
         rpd.colorAttachments[0].texture    = drawable.texture;
         
-        id<MTLRenderCommandEncoder> rce = [commandBuffer renderCommandEncoderWithDescriptor:rpd];
-        [rce setRenderPipelineState:_blitPipeline];
-        [rce setFragmentTexture:_texture atIndex:0];
-        [rce setFragmentSamplerState:_sampler atIndex:0];
-        [rce drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
-        [rce endEncoding];
+        if (_filterChain.shader) {
+            // Use OEFilterChain for shader-based rendering (CRT, smoothing, etc.)
+            [_filterChain renderWithCommandBuffer:commandBuffer renderPassDescriptor:rpd];
+        } else if (_blitPipeline) {
+            // Fallback to simple blit when no shader is loaded
+            id<MTLRenderCommandEncoder> rce = [commandBuffer renderCommandEncoderWithDescriptor:rpd];
+            [rce setRenderPipelineState:_blitPipeline];
+            [rce setFragmentTexture:_texture atIndex:0];
+            [rce setFragmentSamplerState:_sampler atIndex:0];
+            [rce drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+            [rce endEncoding];
+        } else {
+            return;
+        }
         
         // With presentsWithTransaction=YES, we commit first, wait for the
         // command buffer to be scheduled on the GPU (very fast — microseconds),

@@ -13,9 +13,25 @@
 #import <Cocoa/Cocoa.h>
 
 typedef NS_ENUM(NSInteger, BXRenderingStyle) {
-    BXRenderingStyleNormal,
-    BXRenderingStyleSmoothed,
-    BXRenderingStyleCRT,
+    BXRenderingStyleNormal,       // 0 - Pixellate (pixel-perfect)
+    BXRenderingStyleSmoothed,     // 1 - Smooth
+    BXRenderingStyleCRT,          // 2 - CRT Geom
+    BXRenderingStyleCRTDeluxe,    // 3 - CRT Geom Deluxe
+    BXRenderingStyleCRTRoyale,    // 4 - CRT Royale Kurozumi
+    BXRenderingStyleNTSC,         // 5 - NTSC
+    BXRenderingStyleNTSCVCR,      // 6 - NTSC VCR
+    BXRenderingStyleVHS,          // 7 - VHS
+    BXRenderingStyleMAMEHLSL,     // 8 - MAME HLSL
+    BXRenderingStyleLCDPSP,       // 9 - LCD PSP
+    BXRenderingStyleSABR,         // 10 - SABR
+    BXRenderingStyleXBRZ,         // 11 - xBRZ Freescale
+    BXRenderingStyleXBRZMultipass,// 12 - xBRZ Multipass Freescale
+    BXRenderingStyleNearestNeighbor,// 13 - Nearest Neighbor
+    BXRenderingStyleLinear,       // 14 - Linear
+    BXRenderingStyleBlinky,       // 15 - Blinky
+    BXRenderingStyleDither,       // 16 - Dither
+    BXRenderingStyleHalftone,     // 17 - Halftone
+    BXRenderingStyleMotionBlur,   // 18 - Motion Blur
     //---
     BXNumRenderingStyles
 };

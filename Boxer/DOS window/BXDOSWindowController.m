@@ -246,6 +246,102 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 	//This is necessary because the order of windowDidLoad/setDocument: differs between OS X releases, and some
 	//of our members may have been nil when setDocument: was first called
 	self.document = self.document;
+    
+    //Populate the Rendering Style submenu with all available shaders.
+    [self _populateRenderingStyleMenu];
+}
+
+- (void)_populateRenderingStyleMenu
+{
+    // Find the "Rendering Style" submenu in the main menu bar
+    NSMenu *mainMenu = [NSApp mainMenu];
+    NSMenuItem *viewMenuItem = nil;
+    for (NSMenuItem *item in mainMenu.itemArray) {
+        if ([item.title isEqualToString:@"View"]) {
+            viewMenuItem = item;
+            break;
+        }
+    }
+    if (!viewMenuItem || !viewMenuItem.submenu) return;
+    
+    NSMenuItem *renderingStyleMenuItem = nil;
+    for (NSMenuItem *item in viewMenuItem.submenu.itemArray) {
+        if ([item.title isEqualToString:@"Rendering Style"]) {
+            renderingStyleMenuItem = item;
+            break;
+        }
+    }
+    if (!renderingStyleMenuItem || !renderingStyleMenuItem.submenu) return;
+    
+    NSMenu *submenu = renderingStyleMenuItem.submenu;
+    [submenu removeAllItems];
+    
+    // Define shader entries: { display name, enum value }
+    struct { NSString *title; BXRenderingStyle style; } shaders[] = {
+        // -- Pixel-Perfect --
+        { @"Pixellate (Original)",      BXRenderingStyleNormal },
+        { @"Nearest Neighbor",          BXRenderingStyleNearestNeighbor },
+        { @"Linear",                    BXRenderingStyleLinear },
+        // -- Upscaling --
+        { @"Smooth",                    BXRenderingStyleSmoothed },
+        { @"SABR",                      BXRenderingStyleSABR },
+        { @"xBRZ Freescale",            BXRenderingStyleXBRZ },
+        { @"xBRZ Multipass Freescale",  BXRenderingStyleXBRZMultipass },
+        // -- CRT --
+        { @"CRT Geom",                  BXRenderingStyleCRT },
+        { @"CRT Geom Deluxe",           BXRenderingStyleCRTDeluxe },
+        { @"CRT Royale Kurozumi",       BXRenderingStyleCRTRoyale },
+        // -- TV / Video --
+        { @"NTSC",                      BXRenderingStyleNTSC },
+        { @"NTSC VCR",                  BXRenderingStyleNTSCVCR },
+        { @"VHS",                       BXRenderingStyleVHS },
+        { @"MAME HLSL",                 BXRenderingStyleMAMEHLSL },
+        { @"LCD PSP",                   BXRenderingStyleLCDPSP },
+        // -- Effects --
+        { @"Blinky",                    BXRenderingStyleBlinky },
+        { @"Dither",                    BXRenderingStyleDither },
+        { @"Halftone",                  BXRenderingStyleHalftone },
+        { @"Motion Blur",               BXRenderingStyleMotionBlur },
+    };
+    
+    NSString *sectionHeaders[] = {
+        @"Pixel-Perfect",   // before index 0
+        @"Upscaling",       // before index 3
+        @"CRT",             // before index 7
+        @"TV / Video",      // before index 10
+        @"Effects",         // before index 15
+    };
+    int sectionStarts[] = { 0, 3, 7, 10, 15 };
+    int numSections = 5;
+    
+    int shaderCount = sizeof(shaders) / sizeof(shaders[0]);
+    int sectionIdx = 0;
+    
+    for (int i = 0; i < shaderCount; i++) {
+        // Insert section header and separator
+        if (sectionIdx < numSections && i == sectionStarts[sectionIdx]) {
+            if (i > 0) {
+                [submenu addItem:[NSMenuItem separatorItem]];
+            }
+            NSMenuItem *header = [[NSMenuItem alloc] initWithTitle:sectionHeaders[sectionIdx]
+                                                            action:nil
+                                                     keyEquivalent:@""];
+            header.enabled = NO;
+            [submenu addItem:header];
+            sectionIdx++;
+        }
+        
+        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:shaders[i].title
+                                                      action:@selector(toggleRenderingStyle:)
+                                               keyEquivalent:@""];
+        item.tag = shaders[i].style;
+        // Keyboard shortcuts for the first 3 (backward compatible)
+        if (shaders[i].style == BXRenderingStyleNormal)     item.keyEquivalent = @"1";
+        if (shaders[i].style == BXRenderingStyleSmoothed)   item.keyEquivalent = @"2";
+        if (shaders[i].style == BXRenderingStyleCRT)        item.keyEquivalent = @"3";
+        
+        [submenu addItem:item];
+    }
 }
 
 
@@ -722,6 +818,7 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
                 case BXRenderingStyleNormal:
                 default:
                     filterType = BXFilterNormal;
+                    break;
             }
             
             videoHandler.filterType = filterType;
