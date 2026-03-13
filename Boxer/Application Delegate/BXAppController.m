@@ -93,7 +93,7 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
 {
-	if (self.documents == 0) {
+	if (self.documents.count == 0) {
 		return NSTerminateNow;
 	}
 	//Tell any remaining documents to close on exit so they can clean up properly and save their state.

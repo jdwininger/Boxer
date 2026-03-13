@@ -240,7 +240,14 @@ static BOOL _hasStartedEmulator = NO;
     NSAssert(_hasStartedEmulator == NO && _currentEmulator == nil,
              @"A second emulation session cannot be started after one has already been started.");
     
-	if (self.isCancelled) return;
+	if (self.isCancelled)
+    {
+        NSLog(@"BXEmulator: start called but emulator is already cancelled, posting finish notification.");
+        [self _postNotificationName: BXEmulatorDidFinishNotification
+                   delegateSelector: @selector(emulatorDidFinish:)
+                           userInfo: nil];
+        return;
+    }
     
     self.emulationThread = [NSThread currentThread];
 	
@@ -264,6 +271,8 @@ static BOOL _hasStartedEmulator = NO;
         [_currentEmulator release];
         _currentEmulator = nil;
 	}
+    
+	_hasStartedEmulator = NO;
     
 	[self _postNotificationName: BXEmulatorDidFinishNotification
 			   delegateSelector: @selector(emulatorDidFinish:)

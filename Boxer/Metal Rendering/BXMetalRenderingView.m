@@ -368,6 +368,9 @@ static NSString *const kBlitShaderSource = @""
         self.paused = YES;
         _currentFrame = nil;
         _texture = nil;
+    } else {
+        // Ensure the view is ready to render when entering a window.
+        self.paused = NO;
     }
 }
 
