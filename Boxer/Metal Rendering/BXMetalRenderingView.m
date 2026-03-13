@@ -298,7 +298,7 @@ static NSString *const kBlitShaderSource = @""
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    if (_texture == nil || self.paused) {
+    if (self.paused) {
         return;
     }
     
@@ -317,7 +317,12 @@ static NSString *const kBlitShaderSource = @""
         rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
         rpd.colorAttachments[0].texture    = drawable.texture;
         
-        if (_filterChain.shader) {
+        // When no texture is available yet (e.g. after restart before first frame),
+        // just clear to black so the user doesn't see a grey background.
+        if (_texture == nil) {
+            id<MTLRenderCommandEncoder> rce = [commandBuffer renderCommandEncoderWithDescriptor:rpd];
+            [rce endEncoding];
+        } else if (_filterChain.shader) {
             // Use OEFilterChain for shader-based rendering (CRT, smoothing, etc.)
             [_filterChain renderWithCommandBuffer:commandBuffer renderPassDescriptor:rpd];
         } else if (_blitPipeline) {

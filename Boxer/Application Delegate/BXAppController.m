@@ -84,11 +84,11 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 #pragma mark -
 #pragma mark Application open/closing behaviour
 
-//Quit after the last window was closed if we are a 'subsidiary' process,
-//to avoid leaving extra Boxers littering the Dock
+//Always quit after the last window is closed.
+//The original Boxer would stay open to show a games shelf, but we don't use that.
 - (BOOL) applicationShouldTerminateAfterLastWindowClosed: (NSApplication *)sender
 {
-	return [self.class otherBoxersActive];
+	return YES;
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
