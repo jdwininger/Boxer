@@ -118,6 +118,7 @@ static NSString *const kBlitShaderSource = @""
     self.wantsLayer = YES;
     
     _videoLayer = (CAMetalLayer *)self.layer;
+    _videoLayer.backgroundColor = CGColorGetConstantColor(kCGColorBlack);
     
     [self updateRenderState];
     
