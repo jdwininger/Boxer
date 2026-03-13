@@ -1439,6 +1439,7 @@
 		9F348A9D128F004A0034E780 /* BXWelcomeButtonDraggingDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BXWelcomeButtonDraggingDelegate.h; sourceTree = "<group>"; };
 		9F34BE3E142B700100A69FAF /* BXCoalfaceAudio.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = BXCoalfaceAudio.mm; sourceTree = "<group>"; };
 		9F34BE3F142B700100A69FAF /* BXCoalfaceAudio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BXCoalfaceAudio.h; sourceTree = "<group>"; };
+		C52494911CCB679EABC1F22E /* BXAudioControls.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BXAudioControls.h; sourceTree = "<group>"; };
 		9F34BE5D142B851700A69FAF /* BXEmulator+BXAudio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "BXEmulator+BXAudio.h"; sourceTree = "<group>"; };
 		9F34BE5E142B851700A69FAF /* BXEmulator+BXAudio.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "BXEmulator+BXAudio.mm"; sourceTree = "<group>"; };
 		9F34BE60142B917100A69FAF /* BXBaseAppController+BXSupportFiles.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "BXBaseAppController+BXSupportFiles.h"; sourceTree = "<group>"; };
@@ -2675,6 +2676,7 @@
 				9FDCA78E118F2B7900E2FD74 /* BXCoalface.h */,
 				9FDCA78F118F2B7900E2FD74 /* BXCoalface.mm */,
 				9F34BE3F142B700100A69FAF /* BXCoalfaceAudio.h */,
+				C52494911CCB679EABC1F22E /* BXAudioControls.h */,
 				9F34BE3E142B700100A69FAF /* BXCoalfaceAudio.mm */,
 				9F3E57A313F694B40070A14D /* BXEmulatorErrors.h */,
 				9F3E57A413F694B40070A14D /* BXEmulatorErrors.mm */,

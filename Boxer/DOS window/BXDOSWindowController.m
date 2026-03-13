@@ -34,6 +34,7 @@
 #import "ADBGeometry.h"
 
 #import "BXShaderParametersWindowController.h"
+#import "BXAudioControls.h"
 
 
 #pragma mark - Constants
@@ -249,6 +250,9 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
     
     //Populate the Rendering Style submenu with all available shaders.
     [self _populateRenderingStyleMenu];
+    
+    //Populate the Sound menu with audio effect submenus.
+    [self _populateAudioMenu];
 }
 
 - (void)_populateRenderingStyleMenu
@@ -341,6 +345,93 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
         if (shaders[i].style == BXRenderingStyleCRT)        item.keyEquivalent = @"3";
         
         [submenu addItem:item];
+    }
+}
+
+- (void)_populateAudioMenu
+{
+    // Find the "Sound" menu in the main menu bar
+    NSMenu *mainMenu = [NSApp mainMenu];
+    NSMenuItem *soundMenuItem = nil;
+    for (NSMenuItem *item in mainMenu.itemArray) {
+        if ([item.title isEqualToString:@"Sound"]) {
+            soundMenuItem = item;
+            break;
+        }
+    }
+    if (!soundMenuItem || !soundMenuItem.submenu) return;
+    
+    NSMenu *soundMenu = soundMenuItem.submenu;
+    
+    // Add separator after existing volume items
+    [soundMenu addItem:[NSMenuItem separatorItem]];
+    
+    // --- Reverb submenu ---
+    {
+        NSMenuItem *reverbItem = [[NSMenuItem alloc] initWithTitle:@"Reverb" action:nil keyEquivalent:@""];
+        NSMenu *reverbMenu = [[NSMenu alloc] initWithTitle:@"Reverb"];
+        
+        struct { NSString *title; BXReverbPreset preset; } reverbOptions[] = {
+            { @"Off",    BXReverbPresetNone },
+            { @"Tiny",   BXReverbPresetTiny },
+            { @"Small",  BXReverbPresetSmall },
+            { @"Medium", BXReverbPresetMedium },
+            { @"Large",  BXReverbPresetLarge },
+            { @"Huge",   BXReverbPresetHuge },
+        };
+        for (int i = 0; i < 6; i++) {
+            NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:reverbOptions[i].title
+                                                          action:@selector(toggleReverbPreset:)
+                                                   keyEquivalent:@""];
+            item.tag = reverbOptions[i].preset;
+            [reverbMenu addItem:item];
+        }
+        reverbItem.submenu = reverbMenu;
+        [soundMenu addItem:reverbItem];
+    }
+    
+    // --- Chorus submenu ---
+    {
+        NSMenuItem *chorusItem = [[NSMenuItem alloc] initWithTitle:@"Chorus" action:nil keyEquivalent:@""];
+        NSMenu *chorusMenu = [[NSMenu alloc] initWithTitle:@"Chorus"];
+        
+        struct { NSString *title; BXChorusPreset preset; } chorusOptions[] = {
+            { @"Off",    BXChorusPresetNone },
+            { @"Light",  BXChorusPresetLight },
+            { @"Normal", BXChorusPresetNormal },
+            { @"Strong", BXChorusPresetStrong },
+        };
+        for (int i = 0; i < 4; i++) {
+            NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:chorusOptions[i].title
+                                                          action:@selector(toggleChorusPreset:)
+                                                   keyEquivalent:@""];
+            item.tag = chorusOptions[i].preset;
+            [chorusMenu addItem:item];
+        }
+        chorusItem.submenu = chorusMenu;
+        [soundMenu addItem:chorusItem];
+    }
+    
+    // --- Crossfeed submenu ---
+    {
+        NSMenuItem *crossfeedItem = [[NSMenuItem alloc] initWithTitle:@"Crossfeed" action:nil keyEquivalent:@""];
+        NSMenu *crossfeedMenu = [[NSMenu alloc] initWithTitle:@"Crossfeed"];
+        
+        struct { NSString *title; BXCrossfeedPreset preset; } crossfeedOptions[] = {
+            { @"Off",          BXCrossfeedOff },
+            { @"Light (20%)",  BXCrossfeedLight },
+            { @"Normal (40%)", BXCrossfeedNormal },
+            { @"Strong (60%)", BXCrossfeedStrong },
+        };
+        for (int i = 0; i < 4; i++) {
+            NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:crossfeedOptions[i].title
+                                                          action:@selector(toggleCrossfeedPreset:)
+                                                   keyEquivalent:@""];
+            item.tag = crossfeedOptions[i].preset;
+            [crossfeedMenu addItem:item];
+        }
+        crossfeedItem.submenu = crossfeedMenu;
+        [soundMenu addItem:crossfeedItem];
     }
 }
 
@@ -556,6 +647,24 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 	BXRenderingStyle style = (BXRenderingStyle)sender.tag;
 	[[NSUserDefaults standardUserDefaults] setInteger: style
                                                forKey: @"renderingStyle"];
+}
+
+- (IBAction) toggleReverbPreset: (id <NSValidatedUserInterfaceItem>)sender
+{
+    boxer_setReverbPreset((BXReverbPreset)sender.tag);
+    [[NSUserDefaults standardUserDefaults] setInteger: sender.tag forKey: @"audioReverbPreset"];
+}
+
+- (IBAction) toggleChorusPreset: (id <NSValidatedUserInterfaceItem>)sender
+{
+    boxer_setChorusPreset((BXChorusPreset)sender.tag);
+    [[NSUserDefaults standardUserDefaults] setInteger: sender.tag forKey: @"audioChorusPreset"];
+}
+
+- (IBAction) toggleCrossfeedPreset: (id <NSValidatedUserInterfaceItem>)sender
+{
+    boxer_setCrossfeedPreset((BXCrossfeedPreset)sender.tag);
+    [[NSUserDefaults standardUserDefaults] setInteger: sender.tag forKey: @"audioCrossfeedPreset"];
 }
 
 - (IBAction) toggleHerculesTintMode: (id <NSValidatedUserInterfaceItem>)sender
@@ -1031,6 +1140,27 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
         {
             theItem.state = NSControlStateValueOff;
         }
+		return YES;
+	}
+    
+	if (theAction == @selector(toggleReverbPreset:))
+	{
+		BXReverbPreset current = boxer_getReverbPreset();
+		theItem.state = (theItem.tag == current) ? NSControlStateValueOn : NSControlStateValueOff;
+		return YES;
+	}
+    
+	if (theAction == @selector(toggleChorusPreset:))
+	{
+		BXChorusPreset current = boxer_getChorusPreset();
+		theItem.state = (theItem.tag == current) ? NSControlStateValueOn : NSControlStateValueOff;
+		return YES;
+	}
+    
+	if (theAction == @selector(toggleCrossfeedPreset:))
+	{
+		BXCrossfeedPreset current = boxer_getCrossfeedPreset();
+		theItem.state = (theItem.tag == current) ? NSControlStateValueOn : NSControlStateValueOff;
 		return YES;
 	}
     

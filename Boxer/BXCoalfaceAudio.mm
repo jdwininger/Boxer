@@ -8,8 +8,12 @@
 #import <Foundation/Foundation.h>
 #import "BXEmulatorPrivate.h"
 #import "BXCoalfaceAudio.h"
+#import "BXAudioControls.h"
 #import "RegexKitLite.h"
 #import <CoreFoundation/CFByteOrder.h>
+#include "mixer.h"
+#include "setup.h"
+#include "control.h"
 
 //MIDI message lengths indexed by status code.
 //Copypasta from midi.cpp, modified with fixes of our own:
@@ -124,3 +128,55 @@ float boxer_masterVolume(BXAudioChannel channel)
     //We don't use separate left and right volumes.
     return [BXEmulator currentEmulator].masterVolume;
 }
+
+#pragma mark - Audio effects control
+
+extern "C" {
+
+void boxer_setReverbPreset(BXReverbPreset preset)
+{
+    MIXER_SetReverbPreset(static_cast<ReverbPreset>(preset));
+}
+
+BXReverbPreset boxer_getReverbPreset(void)
+{
+    return static_cast<BXReverbPreset>(MIXER_GetReverbPreset());
+}
+
+void boxer_setChorusPreset(BXChorusPreset preset)
+{
+    MIXER_SetChorusPreset(static_cast<ChorusPreset>(preset));
+}
+
+BXChorusPreset boxer_getChorusPreset(void)
+{
+    return static_cast<BXChorusPreset>(MIXER_GetChorusPreset());
+}
+
+static BXCrossfeedPreset _currentCrossfeedPreset = BXCrossfeedOff;
+
+void boxer_setCrossfeedPreset(BXCrossfeedPreset preset)
+{
+    float strength = 0.0f;
+    switch (preset) {
+        case BXCrossfeedLight:  strength = 0.20f; break;
+        case BXCrossfeedNormal: strength = 0.40f; break;
+        case BXCrossfeedStrong: strength = 0.60f; break;
+        default:                strength = 0.0f;  break;
+    }
+
+    auto& channels = MIXER_GetChannels();
+    for (auto& [name, channel] : channels) {
+        if (channel->HasFeature(ChannelFeature::Stereo)) {
+            channel->SetCrossfeedStrength(strength);
+        }
+    }
+    _currentCrossfeedPreset = preset;
+}
+
+BXCrossfeedPreset boxer_getCrossfeedPreset(void)
+{
+    return _currentCrossfeedPreset;
+}
+
+} // extern "C"

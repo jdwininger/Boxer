@@ -27,3 +27,6 @@ float boxer_masterVolume(BXAudioChannel channel);
 
 /// Defined in mixer.cpp. Update the volumes of all active channels.
 void boxer_updateVolumes();
+
+/// Audio effects control — enums and functions are declared in BXAudioControls.h
+/// (a pure C/ObjC-safe header that can be imported from .m files).

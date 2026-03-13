@@ -170,6 +170,11 @@ extern NSNotificationName const BXViewDidLiveResizeNotification;
 /// Toggle the emulator's active rendering filter.
 - (IBAction) toggleRenderingStyle: (id)sender;
 
+/// Toggle audio effect presets.
+- (IBAction) toggleReverbPreset: (id)sender;
+- (IBAction) toggleChorusPreset: (id)sender;
+- (IBAction) toggleCrossfeedPreset: (id)sender;
+
 /// Increase the draw size of the fullscreen window.
 - (IBAction) incrementFullscreenSize: (id)sender;
 /// Decrease the draw size of the fullscreen window.
