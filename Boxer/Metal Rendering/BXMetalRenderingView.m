@@ -14,12 +14,10 @@
 #import "BXVideoFrame.h"
 #import "BXMetalLayer.h"
 
-/// Only send 1 frame at once to the GPU.
-/// Since we aren't synced to the display, even one more
-/// is enough to block in nextDrawable for more than a frame
-/// and cause audio skipping.
-/// TODO(sgc): implement triple buffering
-#define MAX_INFLIGHT 1
+/// Allow 2 frames in flight (double buffering) so that the
+/// main thread isn't blocked waiting on GPU completion.
+/// This keeps window dragging and UI responsive.
+#define MAX_INFLIGHT 2
 
 @interface BXMetalRenderingView() {
     
@@ -39,6 +37,9 @@
     id<MTLDevice>           _device;
     id<MTLCommandQueue>     _commandQueue;
     MTLClearColor           _clearColor;
+    
+    id<MTLRenderPipelineState> _blitPipeline;
+    id<MTLSamplerState>        _sampler;
     
     BOOL _inViewportAnimation;
     BOOL _managesViewport;
@@ -71,11 +72,34 @@
     return _filterChain;
 }
 
+static NSString *const kBlitShaderSource = @""
+"#include <metal_stdlib>\n"
+"using namespace metal;\n"
+"struct VertexOut {\n"
+"    float4 position [[position]];\n"
+"    float2 texCoord;\n"
+"};\n"
+"vertex VertexOut blitVertex(uint vid [[vertex_id]]) {\n"
+"    VertexOut out;\n"
+"    out.texCoord = float2((vid << 1) & 2, vid & 2);\n"
+"    out.position = float4(out.texCoord * float2(2, -2) + float2(-1, 1), 0, 1);\n"
+"    return out;\n"
+"}\n"
+"fragment float4 blitFragment(VertexOut in [[stage_in]],\n"
+"                              texture2d<float> tex [[texture(0)]],\n"
+"                              sampler s [[sampler(0)]]) {\n"
+"    return tex.sample(s, in.texCoord);\n"
+"}\n";
+
 - (void)initDefaults {
     _inflightSemaphore = dispatch_semaphore_create(MAX_INFLIGHT);
+    // When loaded from a nib, MTKView has no device yet. Create one.
+    if (!self.device) {
+        self.device = MTLCreateSystemDefaultDevice();
+    }
     _device = self.device;
     self.framebufferOnly = YES;
-    self.presentsWithTransaction = NO;
+    self.presentsWithTransaction = YES;
     self.paused = NO;
     
     _commandQueue      = [_device newCommandQueue];
@@ -85,7 +109,11 @@
     
     // some reasonable default
     [_filterChain setSourceRect:CGRectMake(0, 0, 648, 480) aspect:CGSizeMake(4, 3)];
+    _renderingStyle = (BXRenderingStyle)-1; // Force the first setRenderingStyle: to actually load the shader
     self.renderingStyle = BXRenderingStyleNormal;
+    
+    // Build a simple fullscreen blit pipeline as fallback
+    [self _buildBlitPipeline];
     
     self.wantsLayer = YES;
     
@@ -94,6 +122,37 @@
     [self updateRenderState];
     
     _maxFrameSize = NSMakeSize(16384, 16384);
+}
+
+- (void)_buildBlitPipeline {
+    NSError *error = nil;
+    id<MTLLibrary> library = [_device newLibraryWithSource:kBlitShaderSource options:nil error:&error];
+    if (!library) {
+        NSLog(@"BXMetalRenderingView: Failed to compile blit shader: %@", error);
+        return;
+    }
+    id<MTLFunction> vertexFunc = [library newFunctionWithName:@"blitVertex"];
+    id<MTLFunction> fragmentFunc = [library newFunctionWithName:@"blitFragment"];
+    
+    MTLRenderPipelineDescriptor *desc = [MTLRenderPipelineDescriptor new];
+    desc.vertexFunction = vertexFunc;
+    desc.fragmentFunction = fragmentFunc;
+    // Match the layer's pixel format — MTKView defaults to BGRA8Unorm
+    desc.colorAttachments[0].pixelFormat = ((CAMetalLayer *)self.layer).pixelFormat;
+    NSLog(@"BXMetalRenderingView: Building blit pipeline for pixel format %lu", (unsigned long)((CAMetalLayer *)self.layer).pixelFormat);
+    
+    _blitPipeline = [_device newRenderPipelineStateWithDescriptor:desc error:&error];
+    if (!_blitPipeline) {
+        NSLog(@"BXMetalRenderingView: Failed to create blit pipeline: %@", error);
+        return;
+    }
+    
+    MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
+    samplerDesc.minFilter = MTLSamplerMinMagFilterLinear;
+    samplerDesc.magFilter = MTLSamplerMinMagFilterNearest;
+    samplerDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
+    samplerDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
+    _sampler = [_device newSamplerStateWithDescriptor:samplerDesc];
 }
 
 - (BOOL)supportsRenderingStyle:(BXRenderingStyle)style {
@@ -173,49 +232,48 @@
     {
         [self setViewportRect:[self viewportForFrame:frame] animated:YES];
     }
+    
+    // When the emulator runs on the main thread, MTKView's internal display
+    // link can't fire because the run loop is owned by the DOSBox loop.
+    // Trigger an immediate draw so the frame is presented.
+    [self draw];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-    if (_texture == nil) {
+    if (_texture == nil || !_blitPipeline) {
         return;
     }
     
+    CAMetalLayer *metalLayer = (CAMetalLayer *)self.layer;
+    
     @autoreleasepool {
-        if (dispatch_semaphore_wait(_inflightSemaphore, DISPATCH_TIME_NOW) != 0) {
-            _skippedFrames++;
-        } else {
-            id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
-            commandBuffer.label = @"offscreen";
-            [commandBuffer enqueue];
-            [_filterChain renderOffscreenPassesWithCommandBuffer:commandBuffer];
-            [commandBuffer commit];
-            
-            id<CAMetalDrawable> drawable = _videoLayer.nextDrawable;
-            if (drawable != nil) {
-                MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor new];
-                rpd.colorAttachments[0].clearColor = _clearColor;
-                // TODO: Use MTLLoadActionDontCare
-                // We can use MTLLoadActionDontCare when source texture
-                // is same aspect ratio as drawable (i.e. windowed)
-                rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
-                rpd.colorAttachments[0].texture    = drawable.texture;
-                commandBuffer = [_commandQueue commandBuffer];
-                commandBuffer.label = @"final";
-                id<MTLRenderCommandEncoder> rce = [commandBuffer renderCommandEncoderWithDescriptor:rpd];
-                [_filterChain renderFinalPassWithCommandEncoder:rce];
-                [rce endEncoding];
-                
-                __block dispatch_semaphore_t inflight = _inflightSemaphore;
-                [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _) {
-                    dispatch_semaphore_signal(inflight);
-                }];
-                
-                [commandBuffer presentDrawable:drawable];
-                [commandBuffer commit];
-            } else {
-                dispatch_semaphore_signal(self->_inflightSemaphore);
-            }
+        id<CAMetalDrawable> drawable = metalLayer.nextDrawable;
+        if (drawable == nil) {
+            return;
         }
+        
+        id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
+        
+        MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor new];
+        rpd.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+        rpd.colorAttachments[0].texture    = drawable.texture;
+        
+        id<MTLRenderCommandEncoder> rce = [commandBuffer renderCommandEncoderWithDescriptor:rpd];
+        [rce setRenderPipelineState:_blitPipeline];
+        [rce setFragmentTexture:_texture atIndex:0];
+        [rce setFragmentSamplerState:_sampler atIndex:0];
+        [rce drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+        [rce endEncoding];
+        
+        // With presentsWithTransaction=YES, we commit first, wait for the
+        // command buffer to be scheduled on the GPU (very fast — microseconds),
+        // then present the drawable in sync with the Core Animation transaction.
+        // This keeps the layer content synchronized with the window position
+        // during drags and resizes.
+        [commandBuffer commit];
+        [commandBuffer waitUntilScheduled];
+        [drawable present];
     }
 }
 
@@ -320,7 +378,7 @@
     if (!NSEqualRects(newRect, _viewportRect))
     {
         _viewportRect = newRect;
-        [self needsDisplay];
+        [self setNeedsDisplay:YES];
     }
 }
 

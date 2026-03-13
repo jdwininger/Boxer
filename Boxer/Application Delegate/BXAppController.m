@@ -227,8 +227,7 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 - (void) openDocumentWithContentsOfURL: (NSURL *)absoluteURL
 							   display: (BOOL)displayDocument
 					 completionHandler: (void (^)(NSDocument * _Nullable, BOOL, NSError * _Nullable))completionHandler
-{
-	//First go through our existing sessions, checking if any can open the specified URL.
+{	//First go through our existing sessions, checking if any can open the specified URL.
 	//(This will be possible if the URL is accessible to a session's emulated filesystem,
 	//and the session is not already running a program.)
 	
@@ -291,7 +290,8 @@ static NSString * const BXActivateOnLaunchParam = @"--activateOnLaunch";
 							   error: (NSError **)outError
 {
 	[self hideWelcomePanel: self];
-	if ([self _canOpenDocumentOfClass: [self documentClassForType: typeName]])
+	BOOL canOpen = [self _canOpenDocumentOfClass: [self documentClassForType: typeName]];
+	if (canOpen)
 	{
         return [super makeDocumentWithContentsOfURL: absoluteURL
                                              ofType: typeName

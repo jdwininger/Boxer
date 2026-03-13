@@ -16,3 +16,11 @@ project.xcworkspace
 DerivedData/
 swiftpm/
 build_and_notarize.sh
+
+#Ignore IDE and editor config
+.vscode/
+
+#Ignore debug/helper scripts
+build_fast.sh
+get_crash.sh
+parse_crash.py

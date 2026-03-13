@@ -1,3 +1,7 @@
+#include <cstring>  // for strlen, memcpy
+#include <cstdio>
+#include <cstdarg>
+
 extern "C" {
     const char* ManyMouse_DeviceName(unsigned int index) { return "Mouse"; }
     const char* ManyMouse_DriverName() { return "Driver"; }
@@ -34,7 +38,21 @@ extern "C" {
     void speex_resampler_set_rate(void*, int, int) {}
     void speex_resampler_skip_zeros(void*) {}
 
-    int wai_getExecutablePath(char*, int, int*) { return 0; }
+    int wai_getExecutablePath(char* buf, int bufsize, int* length) {
+        // the test stubs previously returned 0 unconditionally, which
+        // causes GetExecutablePath() to assert during normal runs.  Provide
+        // a minimal fake path so that the process still works when the
+        // real whereami library isn't linked (e.g. in unit tests or
+        // packaging builds).
+        const char *fake = "/Applications/Boxer.app/Contents/MacOS/Boxer";
+        int len = (int)strlen(fake) + 1;
+        if (length) *length = len;
+        if (buf && bufsize >= len) {
+            memcpy(buf, fake, len);
+            return len;
+        }
+        return len; // return required size
+    }
 
     void* __Sound_DecoderFunctions_OPUS = 0;
 }
@@ -55,7 +73,16 @@ enum class InterpolationMode { None };
 enum class RenderingBackend { None };
 enum class MouseHint { None };
 
-void E_Exit(char const*, ...) {}
+[[noreturn]] void E_Exit(char const* format, ...) {
+    static char buf[2048];
+    va_list arglist;
+    va_start(arglist, format);
+    vsnprintf(buf, sizeof(buf), format, arglist);
+    va_end(arglist);
+    fprintf(stderr, "FATAL E_EXIT CALLED: %s\n", buf);
+    fflush(stderr);
+    throw buf;
+}
 void GFX_CalcViewport(int, int, int, int, Fraction const&) {}
 void GFX_GetCanvasSize() {}
 IntegerScalingMode GFX_GetIntegerScalingMode() { return IntegerScalingMode::None; }

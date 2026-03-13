@@ -15,6 +15,9 @@
 #import "mapper.h"
 #import "joystick.h"
 
+// DOSBox configuration helpers
+#include "cross.h"
+
 
 #pragma mark - Constants
 
@@ -1011,6 +1014,12 @@ static BOOL _hasStartedEmulator = NO;
             configuration = new Config(commandLine);
             control.reset(configuration);
             
+            // Ensure the config directory is known before any path-type
+            // properties are constructed in DOSBOX_Init. Without this we
+            // crash later when the first Prop_path tries to resolve the
+            // default value (see rdar://problem/####).
+            InitConfigDir();
+
             //Sets up the vast swathes of DOSBox configuration file parameters,
             //and registers the shell to start up when we finish initializing.
             DOSBOX_Init();
@@ -1057,11 +1066,10 @@ static BOOL _hasStartedEmulator = NO;
 	//Clean up after DOSBox finishes.
 	SDL_Quit();
 	[self.videoHandler shutdown];
-    control = NULL;
-    delete configuration;
-    configuration = NULL;
     delete commandLine;
     commandLine = NULL;
+    control = NULL;
+    configuration = NULL;
 }
 
 @end
