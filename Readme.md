@@ -36,10 +36,6 @@ The View menu now exposes **all 19 rendering styles** from the [OpenEmu shader l
 
 A new **Audio Effects** submenu has been added to the Sound menu, exposing the DOSBox-Staging audio effect parameters directly from the menu bar without needing to edit config files.
 
-### In-Place Emulator Restart
-
-Restarting the emulator (e.g. after changing CPU or memory settings) now happens **in-place** within the existing document window, rather than closing and reopening the document. This eliminates the ghost-window flicker and avoids accidentally quitting the app when the last window closes during a restart cycle.
-
 ### Rendering Stability Fixes
 
 Several rendering edge cases were fixed that caused grey or black windows:
@@ -47,10 +43,6 @@ Several rendering edge cases were fixed that caused grey or black windows:
 - `CAMetalLayer` background color set to black (was transparent, causing grey bleed-through)
 - Rendering state correctly reset when switching between the emulator and settings panels
 - Intermittent black screen on document open (race condition in Metal layer setup)
-
-### Build & Notarization Pipeline
-
-A `build_fast.sh` script and a complete `build_and_notarize.sh` pipeline are included for building, signing, and notarizing a distributable `.app` outside of Xcode.
 
 ---
 
