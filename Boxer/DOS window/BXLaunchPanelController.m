@@ -162,11 +162,10 @@
     
     else if ([keyPath isEqualToString: @"canOpenURLs"])
     {
-        if (_shouldUpdateImmediately)
-        {
-            [self _syncLaunchableState];
-            [self _syncLaunchableState];
-        }
+        // Always sync launchable state when canOpenURLs changes, even if the
+        // panel isn't actively shown. Programs that exit quickly (e.g. .bat files)
+        // may never trigger a panel switch, so willShowPanel won't re-sync for us.
+        [self _syncLaunchableState];
     }
 }
 
@@ -350,12 +349,7 @@
 - (void) _syncLaunchableState
 {
     NSUInteger numItems = self.displayedRows.count;
-    
-    //IMPLEMENTATION NOTE: we have to walk through every collection view item telling it whether or
-    //not it's able to launch its program right now. We used to handle this by exposing a "canLaunchPrograms"
-    //property on the panel controller and having individual items listen for changes to that: but this resulted
-    //in KVO deallocation exceptions. (These may have indicated a leak, but it seemed rather like the views were
-    //getting cleaned up in the wrong order because of our complex XIB structure. This bears further investigation.)
+    BXSession *session = (BXSession *)self.representedObject;
     if (numItems > 0)
     {
         for (NSUInteger i=0; i<numItems; i++)
@@ -650,18 +644,18 @@
 {
     NSDictionary *itemDetails = item.representedObject;
     NSURL *URL = [itemDetails objectForKey: @"URL"];
+    BXSession *session = self.representedObject;
     
 	if (URL)
     {
         NSString *arguments = [itemDetails objectForKey: @"arguments"];
     
-        BXSession *session = self.representedObject;
-        
         BOOL canLaunch = YES;
         NSError *launchError = nil;
         
         //Check if we need to mount a drive first in order to run this program
-        if ([session shouldMountNewDriveForURL: URL])
+        BOOL needsNewDrive = [session shouldMountNewDriveForURL: URL];
+        if (needsNewDrive)
         {
             BXDrive *drive = [session mountDriveForURL: URL
                                               ifExists: BXDriveReplace
@@ -979,20 +973,31 @@
     {
         self.active = YES;
         
-        //Enter an event loop listening for the mouse-up event.
-        //If we don't do this, the collection view will swallow the mouse-up and we'll never see it.
-        NSEvent *eventInDrag = [self.window nextEventMatchingMask: NSEventMaskLeftMouseUp];
-        switch (eventInDrag.type)
+        //Track the mouse until mouse-up, then trigger the action if still inside bounds.
+        BOOL keepTracking = YES;
+        while (keepTracking)
         {
-            case NSEventTypeLeftMouseUp:
-                [self mouseUp: eventInDrag];
-                return;
+            NSEvent *nextEvent = [self.window nextEventMatchingMask: NSEventMaskLeftMouseUp | NSEventMaskLeftMouseDragged];
+            if (!nextEvent)
+                break;
+            
+            if (nextEvent.type == NSEventTypeLeftMouseUp)
+            {
+                self.active = NO;
+                NSPoint locationInView = [self convertPoint: nextEvent.locationInWindow fromView: nil];
+                if ([self mouse: locationInView inRect: self.bounds])
+                {
+                    [NSApp sendAction: @selector(openItemInDOS:) to: self.delegate from: self];
+                }
+                keepTracking = NO;
+            }
         }
+        
+        self.active = NO;
     }
     else
     {
         [super mouseDown: theEvent];
-        return;
     }
 }
 
@@ -1002,7 +1007,8 @@
     
     NSPoint locationInWindow = self.window.mouseLocationOutsideOfEventStream;
     NSPoint locationInView = [self convertPoint: locationInWindow fromView: nil];
-    if ([self mouse: locationInView inRect: self.bounds])
+    BOOL insideBounds = [self mouse: locationInView inRect: self.bounds];
+    if (insideBounds)
         [NSApp sendAction: @selector(openItemInDOS:) to: self.delegate from: self];
 }
 

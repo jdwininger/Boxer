@@ -215,6 +215,11 @@
             //Check if that's faster or slower.
             self.snapshot = [self bitmapImageRepForCachingDisplayInRect: self.bounds];
             
+            // Guard against nil snapshot (can happen when bounds are degenerate,
+            // e.g. during window close).
+            if (self.snapshot == nil)
+                return;
+            
             NSDictionary *contextAttribs = [NSDictionary dictionaryWithObject: self.snapshot
                                                                        forKey: NSGraphicsContextDestinationAttributeName];
             

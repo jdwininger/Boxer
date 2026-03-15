@@ -28,6 +28,22 @@ This fork uses DOSBox-Staging as its emulation core and resolves several crashes
 - **Heap corruption on exit**: Removed `capture = {};` reset in `capture.cpp` that was triggering a double-free during `atexit` cleanup.
 - **Null function pointer crash**: Added null-checks for init function pointers in `setup.cpp`.
 
+### Programs / Launch Panel Fixes
+
+The Programs (hamburger) menu, which lets users launch executables from the gamebox, had several interacting bugs that prevented it from working:
+
+- **Launch panel items permanently disabled**: Completion callbacks (`boxer_shellDidExecuteFileAtDOSPath`, `boxer_shellDidEndBatchFile`) were never called by DOSBox-Staging's shell code, so `canOpenURLs` was never set back to YES after the first program ran. Added the missing callbacks in `shell_misc.cpp` and `shell.cpp`.
+- **Mouse click tracking in launch panel**: The tracking loop in `BXLauncherRegularItemView` only matched `LeftMouseUp` events, missing `LeftMouseDragged`, so clicks were silently swallowed.
+- **`.bat` files not recognized**: macOS reports `.bat` files as `com.microsoft.bat` but Boxer only checked `com.microsoft.batch-file`. Added the modern UTI to `BXFileTypes`.
+- **Commands queued but never executed**: The Boxer command-injection hooks in `ReadCommand()` were entirely `#if 0`'d out. Re-enabled `boxer_shellWillReadCommandInputFromHandle` / `boxer_shellDidReadCommandInputFromHandle` around the input loop and added `boxer_executeNextPendingCommandForShell` in the main shell loop so queued commands actually run.
+- **`.bat` file selection in inspector**: The gamebox inspector's program picker also failed to recognize `.bat` files due to the same UTI mismatch.
+
+### Window and Session Stability
+
+- **Ghost window on close**: `BXDOSWindowController` was not properly cleaning up its rendering views during `windowWillClose:`, leaving a detached window on screen.
+- **Crash on document close**: Session teardown order fixed to prevent accessing deallocated emulator state.
+- **`BLASTER` environment variable**: The `BLASTER` env var autoexec line was being generated with incorrect syntax for DOSBox-Staging, causing Sound Blaster detection failures in some games.
+
 ### Shader-Based Rendering Styles (via OpenEmu Shaders)
 
 The View menu now exposes **all 19 rendering styles** from the [OpenEmu shader library](https://github.com/OpenEmu/OpenEmu-SDK), including CRT scanline filters, pixel-perfect upscaling, and smoothing shaders. The previously hardcoded three styles (Normal, CRT, Smooth) are now backed by real `.slangp` Slang shaders processed by an `OEFilterChain` pipeline.
@@ -43,6 +59,7 @@ Several rendering edge cases were fixed that caused grey or black windows:
 - `CAMetalLayer` background color set to black (was transparent, causing grey bleed-through)
 - Rendering state correctly reset when switching between the emulator and settings panels
 - Intermittent black screen on document open (race condition in Metal layer setup)
+- `BXDOSWindowBackgroundView` now handles nil `currentContext` gracefully to avoid crashes when the window is being torn down
 
 ---
 

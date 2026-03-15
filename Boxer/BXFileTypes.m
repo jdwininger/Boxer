@@ -36,6 +36,7 @@ NSString * const BXCDROMImageBundleType = @"net.washboardabs.boxer-cdrom-bundle"
 NSString * const BXEXEProgramType   = @"com.microsoft.windows-executable";
 NSString * const BXCOMProgramType   = @"com.microsoft.msdos-executable";
 NSString * const BXBatchProgramType = @"com.microsoft.batch-file";
+NSString * const BXBatchProgramTypeModern = @"com.microsoft.bat";
 
 NSString * const BXDOCFileType      = @"com.microsoft.word.doc";
 
@@ -145,6 +146,7 @@ NSString * const BXDOCFileType      = @"com.microsoft.word.doc";
                  BXEXEProgramType,
                  BXCOMProgramType,
                  BXBatchProgramType,
+                 BXBatchProgramTypeModern,
                  nil];
     });
     return types;
@@ -457,7 +459,7 @@ NSString * const BXExecutableTypesErrorDomain = @"BXExecutableTypesErrorDomain";
 + (BOOL) isCompatibleExecutableAtURL: (NSURL *)URL error: (out NSError **)outError
 {
     //Automatically assume .COM and .BAT files are DOS-compatible.
-    if ([URL conformsToFileType: BXCOMProgramType] || [URL conformsToFileType: BXBatchProgramType])
+    if ([URL conformsToFileType: BXCOMProgramType] || [URL conformsToFileType: BXBatchProgramType] || [URL conformsToFileType: BXBatchProgramTypeModern])
         return YES;
     
     //If it is an .EXE file, subject it to a more rigorous compatibility check.
@@ -478,7 +480,7 @@ NSString * const BXExecutableTypesErrorDomain = @"BXExecutableTypesErrorDomain";
     NSString *matchingType = [filesystem typeOfFileAtPath: path matchingTypes: [self executableTypes]];
     
     //Automatically assume .COM and .BAT files are DOS-compatible.
-    if ([matchingType isEqualToString: BXCOMProgramType] || [matchingType isEqualToString: BXBatchProgramType])
+    if ([matchingType isEqualToString: BXCOMProgramType] || [matchingType isEqualToString: BXBatchProgramType] || [matchingType isEqualToString: BXBatchProgramTypeModern])
         return YES;
     
     //If it is an .EXE file, subject it to a more rigorous compatibility check.

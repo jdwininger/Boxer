@@ -35,6 +35,7 @@ extern NSString * const BXCDROMImageBundleType; //!< .cdmedia
 extern NSString * const BXEXEProgramType;       //!< .exe
 extern NSString * const BXCOMProgramType;       //!< .com
 extern NSString * const BXBatchProgramType;     //!< .bat
+extern NSString * const BXBatchProgramTypeModern; //!< .bat (modern macOS UTI)
 
 
 

@@ -133,7 +133,11 @@ enum {
     openPanel.canChooseFiles = YES;
     openPanel.canChooseDirectories = NO;
     openPanel.treatsFilePackagesAsDirectories = YES;
-    openPanel.allowedFileTypes = [BXFileTypes executableTypes].allObjects;
+    // Support selecting .bat (batch file) and .cmd scripts as well as standard DOS executables.
+    NSMutableArray *allowedTypes = [[BXFileTypes executableTypes].allObjects mutableCopy];
+    [allowedTypes addObject:@"bat"];
+    [allowedTypes addObject:@"cmd"];
+    openPanel.allowedFileTypes = allowedTypes;
     
     openPanel.message = NSLocalizedString(@"Choose the target program for this gamebox:",
                                           @"Help text shown at the top of choose-a-target-program panel.");
@@ -207,6 +211,7 @@ enum {
 - (void) syncMenuItems
 {
 	NSMenu *menu = self.programSelector.menu;
+
 	
     NSInteger startMarkerIndex  = [menu indexOfItemWithTag: BXGameboxPanelNoProgramTag];
     NSInteger endMarkerIndex    = [menu indexOfItemWithTag: BXGameboxPanelEndOfProgramsTag];
@@ -253,6 +258,8 @@ enum {
 	NSMutableArray *items		= [NSMutableArray arrayWithCapacity: allPrograms.count];
 	
 	NSArray *driveLetters = [allPrograms.allKeys sortedArrayUsingSelector: @selector(compare:)];
+	
+
 	
     BOOL hasItemForTarget = NO;
 	if (driveLetters.count)

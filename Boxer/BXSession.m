@@ -642,6 +642,11 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     //disables certain parts of our behaviour to prevent
     //interference while the emulator is shutting down.
     self.emulating = NO;
+    
+    //Cancel any pending delayed panel switches that were scheduled
+    //by _showDOSViewAfterProgramStart. These use object:self so we
+    //must cancel with the same object parameter.
+    [self _cancelDOSViewAfterProgramStart];
 }
 
 
@@ -669,37 +674,43 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     [self.gameSettings setObject: @(showLaunchPanel)
                           forKey: BXGameboxSettingsShowLaunchPanelKey];
     
-    //Flag that we're restarting so emulatorDidFinish: will create a new
-    //emulator in-place rather than closing the session.
+    //Store the restart intent so that emulatorDidFinish: can reopen the document
+    //after the emulator has fully shut down.
     _isRestarting = YES;
     _showLaunchPanelOnRestart = showLaunchPanel;
     
-    //Cancel the emulator to trigger shutdown.
+    //Prevent the app from quitting when the last window closes during the
+    //restart sequence.
+    ((BXBaseAppController *)[NSApp delegate]).restartingDocumentCount++;
+    
+    //Cancel the emulator to trigger shutdown. When DOSBox fully exits,
+    //emulatorDidFinish: will handle the close-and-reopen sequence.
     [self cancel];
 }
 
-- (void) _restartEmulatorInPlace
+- (void) _completeRestartWithURL: (NSURL *)reopenURL
 {
-    //Clear restart flags
-    _isRestarting = NO;
-    _showLaunchPanelOnRestart = NO;
+    BXBaseAppController *appController = (BXBaseAppController *)[NSApp delegate];
     
-    //Reset session state so a new emulator can start
-    _hasStarted = NO;
-    _hasConfigured = NO;
-    _hasLaunched = NO;
-    _hasFinishedStartupProcess = NO;
-    _isClosing = NO;
+    //Close the old session now that the emulator has fully unwound.
+    [self close];
     
-    //Clear program tracking
-    self.launchedProgramURL = nil;
-    self.launchedProgramArguments = nil;
-    
-    //Create a fresh emulator (setEmulator: handles delegate/binding teardown of old one)
-    self.emulator = [[BXEmulator alloc] init];
-    
-    //Re-launch through the normal start path
-    [self start];
+    //Open a fresh session for the same game.
+    if (reopenURL)
+        [appController openDocumentWithContentsOfURL: reopenURL
+                                             display: YES
+                                   completionHandler: ^(NSDocument * _Nullable document,
+                                                        BOOL documentWasAlreadyOpen,
+                                                        NSError * _Nullable error) {
+            appController.restartingDocumentCount--;
+            if (error)
+                NSLog(@"Restart failed to reopen document: %@", error);
+        }];
+    else
+    {
+        [appController openUntitledDocumentAndDisplay: YES error: NULL];
+        appController.restartingDocumentCount--;
+    }
 }
 
 - (BOOL) isEntireFileLoaded
@@ -1218,11 +1229,12 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
 	
     if (_isRestarting)
     {
-        //Restart in-place: create a fresh emulator within the same session
-        //and re-run _startEmulator. This avoids closing/reopening the document
-        //which has issues with DOSBox's global state.
-        [self performSelector: @selector(_restartEmulatorInPlace)
-                   withObject: nil
+        //The emulator has fully shut down. Now close the old session and reopen.
+        //We defer to the next run loop iteration so that the emulator's call stack
+        //has fully unwound before we tear down the session and start a new one.
+        NSURL *reopenURL = self.fileURL;
+        [self performSelector: @selector(_completeRestartWithURL:)
+                   withObject: reopenURL
                    afterDelay: 0];
     }
     else if ([self _shouldCloseOnEmulatorExit])
@@ -1569,10 +1581,13 @@ NSString * const BXGameImportedNotificationType     = @"BXGameImported";
     //Let the display sleep while we're at the shell
     [self _syncSuppressesDisplaySleep];
     
-    //If we're in the middle of a restart, don't act on program completion
-    //behaviour (which could close the session before the restart completes).
-    if (_isRestarting)
-        return;
+    //If we're in the middle of closing or restarting, don't act on program
+    //completion behaviour (which would manipulate the window after it's hidden).
+    if (_isRestarting || _isClosing) return;
+    
+    //We're back at the shell prompt, so we can accept new URLs.
+    //This must be set before showLaunchPanel so that items are enabled correctly.
+    self.canOpenURLs = YES;
     
     //If this was the last program in the stack, then clean up a bunch of our state
     //and switch back to the launcher panel if appropriate.

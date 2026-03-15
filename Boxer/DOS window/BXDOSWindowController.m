@@ -169,6 +169,16 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
     //Display the loading panel by default.
     [self switchToPanel: BXDOSWindowLoadingPanel animate: NO];
     
+    //Set the window background to black so there's no grey flash
+    //while the emulator and Metal rendering view are initializing.
+    self.window.backgroundColor = NSColor.blackColor;
+    self.window.contentView.wantsLayer = YES;
+    self.window.contentView.layer.backgroundColor = NSColor.blackColor.CGColor;
+    self.panelWrapper.wantsLayer = YES;
+    self.panelWrapper.layer.backgroundColor = NSColor.blackColor.CGColor;
+    self.loadingPanel.wantsLayer = YES;
+    self.loadingPanel.layer.backgroundColor = NSColor.blackColor.CGColor;
+    
 	self.window.preservesContentDuringLiveResize = NO;
 	self.window.acceptsMouseMovedEvents = YES;
 	
@@ -455,6 +465,8 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 
 - (void) synchronizeWindowTitleWithDocumentName
 {
+    if (_windowIsClosing) return;
+    
     //If this app is a standalone game bundle, use the name of the app as the title,
     //and do not allow the user to browse to the bundled game's location.
     if ([(BXBaseAppController *)[NSApp delegate] isStandaloneGameBundle])
@@ -468,7 +480,12 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
         BXSession *session = (BXSession *)self.document;
         if (session.hasGamebox)
         {
-            [super synchronizeWindowTitleWithDocumentName];
+            // Set the title directly instead of calling super, which would set
+            // representedURL from the document's fileURL. A representedURL causes
+            // macOS to create QLPreviewImageWindow/QLTransitionWindow during
+            // window close, leaving ghost images stuck on screen.
+            NSString *displayName = ((NSDocument *)self.document).displayName;
+            self.window.title = [self windowTitleForDocumentDisplayName: displayName];
             
             //Also make sure we adopt the current icon of the gamebox,
             //in case it has changed during the lifetime of the session.
@@ -486,7 +503,6 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
                 NSString *displayName = representedURL.localizedName;
                 if (!displayName)
                     displayName = representedURL.lastPathComponent;
-                self.window.representedURL = representedURL;
                 self.window.title = [self windowTitleForDocumentDisplayName: displayName];
             }
             else
@@ -494,7 +510,6 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
                 NSString *fallbackTitle = NSLocalizedString(@"MS-DOS Prompt",
                                                             @"The standard window title when the session is at the DOS prompt.");
                 //If that wasn't available either (e.g. we're on drive Z) then just display a generic title
-                self.window.representedURL = nil;
                 self.window.title = [self windowTitleForDocumentDisplayName: fallbackTitle];
             }
         }
@@ -1270,6 +1285,8 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 
 - (void) switchToPanel: (BXDOSWindowPanel)newPanel animate: (BOOL)animate
 {
+    if (_windowIsClosing) return;
+    
     BXDOSWindowPanel oldPanel = self.currentPanel;
     BXSession *session = (BXSession *)self.document;
     BXDOSWindow *window = (BXDOSWindow *)self.window;
@@ -1491,6 +1508,11 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 
 - (void) updateWithFrame: (BXVideoFrame *)frame
 {
+    //Don't accept any more frames once the window is closing.
+    //This prevents late frames from resizing/redisplaying the window
+    //after windowWillClose: has already hidden it.
+    if (_windowIsClosing) return;
+    
     //Apply aspect-ratio correction if appropriate
     if ([self _shouldCorrectAspectRatioOfFrame: frame])
         [frame useAspectRatio: BX4by3AspectRatio];
@@ -1761,14 +1783,51 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 - (void) windowWillClose: (NSNotification *)notification
 {
     _windowIsClosing = YES;
+    self.window.representedURL = nil;
+    [self.window standardWindowButton:NSWindowDocumentIconButton].image = nil;
     
-    // Stop the Metal rendering view to prevent ghost images after close.
-    // The MTKView's display link must be paused and textures cleared
-    // before macOS captures the window's close animation snapshot.
+    // Stop the Metal rendering view and clear its resources.
     [self.renderingView updateWithFrame:nil];
     if ([self.renderingView isKindOfClass:[MTKView class]]) {
-        ((MTKView *)self.renderingView).paused = YES;
+        MTKView *metalView = (MTKView *)self.renderingView;
+        metalView.paused = YES;
+        [metalView removeFromSuperview];
     }
+    
+    // Order out the window immediately with no animation.
+    [self.window orderOut:nil];
+    
+    // Safety net: force-close any QuickLook transition windows that got
+    // stuck on screen despite the above measures.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        for (NSWindow *w in [NSApp windows]) {
+            NSString *className = NSStringFromClass([w class]);
+            if ([className hasPrefix:@"QLPreview"] ||
+                [className hasPrefix:@"QLTransition"]) {
+                [w orderOut:nil];
+            }
+        }
+    });
+    
+    // Cancel any delayed panel-switch selectors that were scheduled before close.
+    // These call showDOSView/showLaunchPanel which manipulate the window's views
+    // and frame, producing a ghost image if they fire after the window is hidden.
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(showDOSView)
+                                               object:nil];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                             selector:@selector(showLaunchPanel)
+                                               object:nil];
+    
+    // Dismiss any visible bezel overlay (drive notifications, CPU speed, etc.)
+    // The bezel is a separate borderless window at NSPopUpMenuWindowLevel with
+    // ignoresMouseEvents=YES — exactly matching the "unclickable ghost" symptom.
+    NSWindow *bezelWindow = [[BXBezelController controller] window];
+    [NSObject cancelPreviousPerformRequestsWithTarget:bezelWindow
+                                             selector:@selector(_orderOutAfterFade)
+                                               object:nil];
+    [bezelWindow orderOut:nil];
 }
 
 
@@ -1905,6 +1964,8 @@ NSString * const BXDOSWindowFullscreenSizeFormat = @"Fullscreen size for %@";
 - (void) resizeWindowToRenderingViewSize: (NSSize)newSize
                                  animate: (BOOL)performAnimation
 {
+    if (_windowIsClosing) return;
+    
     //If we're in fullscreen mode, we'll set the requested size later when we come out of fullscreen.
     //(We don't want to resize the window itself during fullscreen.)
     if ([(BXDOSWindow *)self.window isFullScreen])

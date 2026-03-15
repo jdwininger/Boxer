@@ -224,6 +224,11 @@ NSString * const BXGameStateEmulatorVersionKey = @"BXEmulatorVersion";
     if (drive.isReadOnly || ![self driveIsBundled: drive])
         return NO;
     
+    //If the gamebox itself is writable, write directly into the bundle
+    //rather than redirecting to Application Support.
+    if (self.gamebox.isWritable)
+        return NO;
+    
     return YES;
 }
 

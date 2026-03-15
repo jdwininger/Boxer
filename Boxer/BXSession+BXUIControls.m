@@ -443,6 +443,10 @@
     
 	if (theAction == @selector(saveScreenshot:))        return isShowingDOSView;
     
+    //Restart actions — disabled for now while other features are being worked on
+    if (theAction == @selector(performRestart:))        return NO;
+    if (theAction == @selector(performRestartAtLaunchPanel:)) return NO;
+
 	if (theAction == @selector(revertShadowedChanges:)) return self.hasShadowedChanges;
 	if (theAction == @selector(mergeShadowedChanges:))  return self.hasShadowedChanges;
     
@@ -615,18 +619,10 @@
         //That will break out of the menu's own key-event loop, which would otherwise block.
 		return self.isEmulating && isShowingDOSView && !_waitingForFastForwardRelease;
     }
-    //Restart menu item
-    else if (theAction == @selector(performRestartAtLaunchPanel:))
+    //Restart menu items — disabled for now while other features are being worked on
+    else if (theAction == @selector(performRestart:) || theAction == @selector(performRestartAtLaunchPanel:))
     {
-        //If this is a standalone game, hide the menu option altogether if the app can't show the launcher panel.
-        if ([(BXBaseAppController *)[NSApp delegate] isStandaloneGameBundle])
-        {
-            theItem.hidden = !self.allowsLauncherPanel;
-        }
-        
-        //Disable the option if the current session does not support the launch panel
-        //or if we're already at the launch panel.
-        return self.isEmulating && self.allowsLauncherPanel && (self.DOSWindowController.currentPanel != BXDOSWindowLaunchPanel);
+        return NO;
     }
     else if (theAction == @selector(revertShadowedChanges:) || theAction == @selector(mergeShadowedChanges:) || theAction == @selector(exportGameState:))
     {
